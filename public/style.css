@@ -60,6 +60,22 @@ button, textarea { font: inherit; color: inherit; }
   border-radius: 10px; background: var(--accent); color: var(--accent-text);
 }
 
+.actions { display: flex; align-items: center; gap: 10px; }
+.segmented { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-2); border-radius: 10px; }
+.seg {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  padding: 6px 12px; border-radius: 8px; font-size: 0.82rem; font-weight: 550; white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.seg:hover:not(:disabled) { color: var(--text); }
+.seg[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--border); }
+.seg:disabled { cursor: not-allowed; opacity: .6; }
+.streaming .bubble::after {
+  content: ""; display: inline-block; width: 7px; height: 1em; margin-left: 3px; vertical-align: text-bottom;
+  background: var(--accent); border-radius: 2px; animation: blink 1s steps(2) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
 .btn {
   border: 1px solid var(--border); background: var(--surface); border-radius: 10px;
   padding: 8px 14px; cursor: pointer; font-size: 0.875rem; font-weight: 500;
@@ -94,6 +110,7 @@ button, textarea { font: inherit; color: inherit; }
   border-radius: 4px var(--radius) var(--radius) var(--radius);
   padding: 14px 18px; max-width: 100%; overflow-wrap: anywhere;
 }
+.msg .meta { margin: 4px 6px 0; font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .msg.error .bubble { background: var(--danger-soft); border-color: transparent; color: var(--danger); }
 
 /* Rendered markdown */
@@ -157,7 +174,9 @@ button, textarea { font: inherit; color: inherit; }
 @media (max-width: 520px) {
   .topbar, .chat, .composer-wrap { padding-left: 14px; padding-right: 14px; }
   .welcome h2 { font-size: 1.4rem; }
-  .brand p { display: none; }
+  .brand p, .brand h1 { display: none; }
+  .topbar { gap: 8px; }
+  .seg { padding: 6px 9px; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; scroll-behavior: auto !important; transition: none !important; }

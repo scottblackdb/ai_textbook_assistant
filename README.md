@@ -1,21 +1,25 @@
 # Course Companion
 
-Student chatbot over the course textbooks. Node.js (no dependencies) with a flat HTML/CSS/JS UI.
-Answers come from the Databricks Genie agent `01f1e49951b91151bc1e88b97cc6517a`
-(volume `quickstart_catalog.quickstart_schema.textbooks`).
+Student chatbot over the course textbooks. Node.js server + flat HTML/CSS/JS UI with a
+switch between two answer modes (the choice is remembered; each mode keeps its own chat).
+
+| Mode | How it answers |
+|------|----------------|
+| **Genie Agent** | Databricks Genie agent `01f1e49951b91151bc1e88b97cc6517a` searches the PDFs in `quickstart_catalog.quickstart_schema.textbooks` (Agent mode API, beta). |
+| **Vector Search** | Question is embedded with `databricks-gte-large-en`, top 6 chunks are pulled from Lakebase `shared` / `textbooks.public.textbook_chunks` (pgvector, cosine), and `databricks-gpt-6-luna` writes a streamed, cited answer from them. |
 
 ## Run locally
 
+    npm install
     databricks auth login --profile DEFAULT   # only if the token has expired
     npm start                                 # http://localhost:3000
 
-Config comes from env vars or a `.env` file (see `.env.example`). Local dev reads the host from
-`~/.databrickscfg` and gets a short-lived token from `databricks auth token`.
-For deployment, set `DATABRICKS_HOST` and `DATABRICKS_TOKEN`.
+Config via env vars or `.env` (see `.env.example`). Local dev reads the host from
+`~/.databrickscfg` and a token from `databricks auth token`. For deployment set
+`DATABRICKS_HOST` and `DATABRICKS_TOKEN`; that identity needs `CAN_QUERY` on both serving
+endpoints, access to the Genie space, and a Postgres role on the Lakebase `textbooks` database.
 
-## How it works
-
-`POST /api/chat` calls the Genie *Agent mode* API (`/api/2.0/genie/agents/{id}/responses`, beta),
-which searches the PDFs. The server streams progress and the final answer to the browser as NDJSON.
-Citations are rewritten to `[n]` markers with a Sources list (book title and pages).
-The classic Conversation API can't read PDF volumes, so it isn't used.
+## Layout
+- `server.js` – static files + `POST /api/chat` (`mode`: `genie` | `vector`), NDJSON streaming
+- `lib/genie.js`, `lib/rag.js` – the two modes; `lib/auth.js` – Databricks auth helpers
+- `public/` – UI

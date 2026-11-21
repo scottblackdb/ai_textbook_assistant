@@ -19,7 +19,13 @@
           <p>Answers from your course textbooks</p>
         </div>
       </div>
-      <button id="new-chat" class="btn ghost" type="button">New chat</button>
+      <div class="actions">
+        <div class="segmented" role="radiogroup" aria-label="Answer mode">
+          <button type="button" role="radio" class="seg" data-mode="genie" aria-checked="true" title="Genie agent searches the course PDFs">Genie Agent</button>
+          <button type="button" role="radio" class="seg" data-mode="vector" aria-checked="false" title="Vector search in Lakebase, answered by a foundation model">Vector Search</button>
+        </div>
+        <button id="new-chat" class="btn ghost" type="button">New chat</button>
+      </div>
     </header>
 
     <main id="chat" class="chat" aria-live="polite">
@@ -31,9 +37,24 @@
           <button type="button" class="chip">Explain the difference between financial and managerial accounting</button>
           <button type="button" class="chip">Summarize the main ideas of the first chapter</button>
           <button type="button" class="chip">How do debits and credits work?</button>
+          <button type="button" class="chip">Explain how the four financial statements connect to each other</button>
+          <button type="button" class="chip">Why does the matching principle require adjusting entries at the end of a period, and how do they affect the income statement and balance sheet?</button>
+          <button type="button" class="chip">How does the choice between FIFO and LIFO affect net income and taxes when prices are rising?</button>
+          <button type="button" class="chip">Why are internal controls important for preventing fraud, and how does separation of duties help?</button>
+          <button type="button" class="chip">How do revenues, expenses and dividends each affect retained earnings and the accounting equation?</button>
+          <button type="button" class="chip">How do kinetic energy, potential energy and work connect in a falling object?</button>
+          <button type="button" class="chip">How are friction, heat and energy conservation related?</button>
+          <button type="button" class="chip">Explain how Newton's three laws of motion relate to conservation of momentum</button>
+          <button type="button" class="chip">How does conservation of energy explain the motion of a pendulum?</button>
+          <button type="button" class="chip">Explain how angular momentum conservation explains why a spinning skater speeds up when pulling in their arms</button>
+          <button type="button" class="chip">Inventory: 100 units at $10, then 150 units at $12; 180 units are sold. Compute cost of goods sold and ending inventory under FIFO and LIFO.</button>
+          <button type="button" class="chip">A company earns $8,000 of service revenue on account, pays $2,500 rent and $1,200 wages. Record the journal entries and compute net income.</button>
+          <button type="button" class="chip">A 1,000 kg car moving at 20 m/s brakes to a stop in 40 m. Calculate the deceleration and the braking force.</button>
+          <button type="button" class="chip">A ball is thrown at 20 m/s at 30 degrees above horizontal. How far does it travel and what is its maximum height?</button>
         </div>
       </section>
-      <div id="messages" class="messages"></div>
+      <div id="messages-genie" class="messages" data-mode="genie"></div>
+      <div id="messages-vector" class="messages" data-mode="vector" hidden></div>
     </main>
 
     <footer class="composer-wrap">
@@ -43,7 +64,7 @@
           <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6l-.01 6.5L15 12 3.4 13.9z"/></svg>
         </button>
       </form>
-      <p class="hint">Answers come from your course textbooks and may contain mistakes. Check important details in the book.</p>
+      <p class="hint" id="hint">Answers come from your course textbooks and may contain mistakes. Check important details in the book.</p>
     </footer>
   </div>
   <script src="/app.js" type="module"></script>
