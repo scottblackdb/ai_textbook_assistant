@@ -14,7 +14,9 @@ verify with `node --check <file>` and real requests (see "Testing").
   (stripped unless the value is quoted).
 - `lib/auth.js` — host/token resolution and `dbFetch`/`dbJson` REST helpers.
 - `lib/genie.js` — mode `genie`. `lib/rag.js` — mode `vector`. Both export `chat(payload, send, signal)`.
-- `public/` — `index.html`, `style.css`, `app.js` (UI/state/streaming), `markdown.js` (small safe renderer, escapes all HTML).
+- `public/` — `index.html`, `style.css`, `app.js` (UI/state/streaming), `markdown.js` (small safe renderer, escapes all HTML),
+  `flow.js` (right-hand "How it was answered" pane: one live flow-diagram card per question).
+- `lib/trace.js` — `tracer(send)` emits `step` events for the flow pane (`start`/`update`/`done`/`failActive`/`wrap`).
 - `pipeline/Textbooks PDF Vectorization to Lakebase.ipynb` — Databricks notebook that fills the vector table (user-owned; not part of the app).
 - `.env.example` documents every setting. `README.md` is the human-facing doc.
 
@@ -28,7 +30,10 @@ verify with `node --check <file>` and real requests (see "Testing").
 | Streaming | answer arrives whole (progress statuses only) | token `delta` events, then final `answer` |
 
 Client -> server body: `{ mode, message, conversationId?, history? }` (message max 2000 chars).
-Server -> client: NDJSON lines, `type` in `status | delta | answer | error`.
+Server -> client: NDJSON lines, `type` in `status | step | delta | answer | error`.
+`step` = `{ node, state: 'active'|'done'|'error', detail?, ms? }`. Nodes: genie mode `genie`, `answer`; vector mode `rewrite` (only
+when there is history), `embed`, `lakebase`, `decide` (ai_decide, runs in parallel with embed+lakebase), `luna`, `answer`. The
+client draws Question -> ... -> Answer per mode in `flow.js`; to add a step, emit it server-side AND add the node to the layout there.
 `answer` = `{ text, sources: [{ n, title, pages? | pagesLabel? }], conversationId? }`; text uses plain `[n]` citation markers.
 
 ## Hard-won facts (don't re-learn these)
@@ -48,6 +53,18 @@ Server -> client: NDJSON lines, `type` in `status | delta | answer | error`.
 - The model is told to answer only from numbered excerpts and cite `[n]`; `finalize()` in `lib/rag.js` normalizes `[1, 3]` -> `[1] [3]`
   and ranges `[1-3]` -> `[1] [2] [3]`, and lists only citations actually used.
 - The client keeps and sends at most the last 8 vector-mode history messages (request bodies are capped at 128 KB).
+- Luna's `SYSTEM_PROMPT` (in `lib/rag.js`) asks for a college-professor teaching style: direct answer, then explanation, examples,
+  pitfalls, and a "Key takeaway". The grounding rules explicitly override the style. Lessons from tuning:
+  - "Don't pad / scale depth" wording made answers terse; the prompt now forbids bare one-line answers.
+  - Without an explicit refusal rule it answered off-topic questions ("capital of France" -> "Paris"); it now declines them.
+  - It read "use only concepts from the excerpts" as "use only numbers from the excerpts" and skipped numeric examples. The prompt
+    now says made-up numbers are fine (label them "Illustrative example:"; only the rules must come from the excerpts).
+  - Compare / "how does X affect Y" questions are told to use a small side-by-side numeric example.
+  Re-test with a definition, a compare question, an off-topic question and a physics question after any prompt edit.
+- Known content gap: the starter question "How does conservation of energy explain the motion of a pendulum?" retrieves friction
+  and heat chunks, so Luna correctly says the excerpts don't cover it. Motion Mountain mentions pendulums mostly in challenges and
+  the index. Also, `textbook_chunks` holds each book both as the full PDF and as `_part_one/two/three` files, so retrieval can
+  return near-duplicate chunks (a pipeline issue, not an app issue).
 - The UI reads the vector-mode model name from `GET /api/config`; don't hardcode model names in `public/`.
 - `answer` events carry `meta`: `{ source: 'Genie' }` or `{ source: 'Lakebase', model, effort }`. The UI shows it with the
   browser-measured elapsed time as a small label under each answer (`addMeta` in `app.js`).
@@ -71,6 +88,10 @@ Server -> client: NDJSON lines, `type` in `status | delta | answer | error`.
 ## UI conventions
 - Flat design via CSS variables in `style.css`; light/dark follows `prefers-color-scheme`; mobile at <=520px.
 - Strict CSP (`default-src 'self'`): no inline scripts/styles, no CDNs. Keep everything in `public/` files.
+- `[hidden] { display: none !important; }` is required: component rules like `.messages { display: flex }` otherwise override the
+  `hidden` attribute (this silently broke mode switching once). Toggle visibility with `el.hidden`.
+- Layout: `.shell` grid = chat column + 360px flow pane; at <=1080px the pane becomes a slide-over drawer (header "Flow" button,
+  Esc or card click closes it); at <=520px header buttons collapse to icons.
 - Each mode has its own message container and state (`modes` in `app.js`); mode choice is saved in `localStorage`; the mode switch
   and send are disabled while a request is in flight. Never insert model output with `innerHTML` except via `renderMarkdown`.
 
@@ -82,7 +103,10 @@ Start with `PORT=3058 node server.js &` then e.g.:
 
 (swap `"mode":"genie"` for the other mode; Genie takes ~20-60 s). Stop the server by port (`ss -ltnp | grep :3058`, then kill the pid).
 Do not use `pkill -f "node server.js"` from the shell tool: it matches and kills the calling shell.
-The UI itself has not been exercised in a real browser by agents so far.
+UI checks: Chrome is at `/usr/bin/google-chrome`. Install `puppeteer-core` in a scratch dir outside the repo (e.g. `/tmp/shot`), drive
+the page, and screenshot at 1400px and 400px wide, in light and dark mode. When waiting for an answer, wait for the NEW card (card count
+goes up, the first card is `.finished`, controls re-enabled). Waiting for any `.trace.finished` matches older cards. Pause about 0.5 s
+before screenshots, because the 0.2 s CSS transitions make captures look half-faded.
 
 ## Open items / ideas
 - Deploying for students (e.g. as a Databricks App): needs a service principal with CAN_QUERY on both serving endpoints,

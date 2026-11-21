@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <div class="shell" id="shell">
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -24,7 +25,14 @@
           <button type="button" role="radio" class="seg" data-mode="genie" aria-checked="true" title="Genie agent searches the course PDFs">Genie Agent</button>
           <button type="button" role="radio" class="seg" data-mode="vector" aria-checked="false" title="Vector search in Lakebase, answered by a foundation model">Vector Search</button>
         </div>
-        <button id="new-chat" class="btn ghost" type="button">New chat</button>
+        <button id="new-chat" class="btn ghost with-icon" type="button" aria-label="New chat">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span class="btn-label">New chat</span>
+        </button>
+        <button id="flow-toggle" class="btn ghost with-icon flow-toggle" type="button" aria-controls="flow-pane" aria-expanded="false" aria-label="Show how answers were produced">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="9" y="3" width="6" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3" y="16" width="6" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="15" y="16" width="6" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M6 16v-4h12v4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          <span class="btn-label">Flow</span>
+        </button>
       </div>
     </header>
 
@@ -66,6 +74,22 @@
       </form>
       <p class="hint" id="hint">Answers come from your course textbooks and may contain mistakes. Check important details in the book.</p>
     </footer>
+  </div>
+
+  <aside id="flow-pane" class="flow-pane" aria-label="How each answer was produced">
+    <div class="pane-head">
+      <div>
+        <h2>How it was answered</h2>
+        <p>Newest first · click a card to jump to its answer</p>
+      </div>
+      <button id="flow-close" class="icon-btn flow-close" type="button" aria-label="Close flow pane">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <p id="flow-empty" class="pane-empty">Ask a question to see the path it takes through the system.</p>
+    <div id="flow-genie" class="traces"></div>
+    <div id="flow-vector" class="traces" hidden></div>
+  </aside>
   </div>
   <script src="/app.js" type="module"></script>
 </body>

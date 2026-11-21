@@ -1,15 +1,18 @@
 import { renderMarkdown } from './markdown.js';
+import { createTrace } from './flow.js';
 
 const $ = id => document.getElementById(id);
 const chat = $('chat'), welcome = $('welcome');
 const form = $('composer'), input = $('input'), sendBtn = $('send');
 const segs = [...document.querySelectorAll('.seg')];
+const shell = $('shell'), flowEmpty = $('flow-empty'), flowToggle = $('flow-toggle');
 
-// Each mode keeps its own transcript so switching never mixes conversations.
+// Each mode keeps its own transcript (and flow cards) so switching never mixes conversations.
 const modes = {
-  genie:  { el: $('messages-genie'),  conversationId: null, history: [], hint: 'Genie agent searching your course PDFs. May contain mistakes; check important details in the book.' },
-  vector: { el: $('messages-vector'), conversationId: null, history: [], hint: vectorHint('a foundation model') },
+  genie:  { el: $('messages-genie'),  flowEl: $('flow-genie'),  conversationId: null, history: [], hint: 'Genie agent searching your course PDFs. May contain mistakes; check important details in the book.' },
+  vector: { el: $('messages-vector'), flowEl: $('flow-vector'), conversationId: null, history: [], hint: vectorHint('a foundation model') },
 };
+let lunaLabel = 'Luna'; // flow node name for the answer model; refined from /api/config
 const MAX_HISTORY = 8; // the server only uses the last 8 messages
 
 function vectorHint(model) {
@@ -25,9 +28,10 @@ function setMode(next) {
   if (busy || !modes[next]) return;
   mode = next;
   try { localStorage.setItem('mode', mode); } catch { /* ignore */ }
-  for (const [key, m] of Object.entries(modes)) m.el.hidden = key !== mode;
+  for (const [key, m] of Object.entries(modes)) { m.el.hidden = key !== mode; m.flowEl.hidden = key !== mode; }
   for (const s of segs) s.setAttribute('aria-checked', String(s.dataset.mode === mode));
   welcome.hidden = modes[mode].el.childElementCount > 0;
+  updateFlowEmpty();
   $('hint').textContent = modes[mode].hint;
   scrollToBottom();
   input.focus();
@@ -115,6 +119,13 @@ async function ask(question) {
   const bot = addMessage('bot', label);
   let streamed = '';
   const startedAt = performance.now();
+  const trace = createTrace(state.flowEl, {
+    mode: thisMode, question, lunaLabel,
+    hasHistory: thisMode === 'vector' && state.history.length > 0,
+    onSelect: () => jumpTo(bot.wrap),
+  });
+  updateFlowEmpty();
+  bot.trace = trace;
 
   try {
     const res = await fetch('/api/chat', {
@@ -146,6 +157,8 @@ async function ask(question) {
         const ev = JSON.parse(line);
         if (ev.type === 'status') {
           if (!streamed) label.querySelector('.label').textContent = ev.text;
+        } else if (ev.type === 'step') {
+          trace.step(ev);
         } else if (ev.type === 'delta') {
           streamed += ev.text;
           bot.wrap.classList.add('streaming');
@@ -157,6 +170,7 @@ async function ask(question) {
           bot.wrap.classList.remove('streaming');
           bot.bubble.replaceChildren(answerEl(ev));
           addMeta(bot, performance.now() - startedAt, ev.meta);
+          trace.finish(performance.now() - startedAt);
           done = true;
         } else if (ev.type === 'error') {
           showError(bot, ev.message);
@@ -208,6 +222,27 @@ function showError(bot, text) {
   bot.wrap.classList.remove('streaming');
   bot.wrap.classList.add('error');
   bot.bubble.textContent = text;
+  bot.trace?.fail('No answer');
+}
+
+function updateFlowEmpty() {
+  flowEmpty.hidden = modes[mode].flowEl.childElementCount > 0;
+}
+
+// Scroll the chat to an answer and flash it (used when a flow card is clicked).
+function jumpTo(msgEl) {
+  if (!msgEl.isConnected) return;
+  setFlowOpen(false);
+  msgEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  msgEl.classList.remove('flash');
+  void msgEl.offsetWidth; // restart the animation
+  msgEl.classList.add('flash');
+}
+
+// Narrow screens: the pane is a drawer toggled from the header.
+function setFlowOpen(open) {
+  shell.classList.toggle('flow-open', open);
+  flowToggle.setAttribute('aria-expanded', String(open));
 }
 
 function autosize() {
@@ -231,9 +266,14 @@ $('new-chat').addEventListener('click', () => {
   state.conversationId = null;
   state.history = [];
   state.el.replaceChildren();
+  state.flowEl.replaceChildren();
+  updateFlowEmpty();
   welcome.hidden = false;
   input.focus();
 });
+flowToggle.addEventListener('click', () => setFlowOpen(!shell.classList.contains('flow-open')));
+$('flow-close').addEventListener('click', () => setFlowOpen(false));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setFlowOpen(false); });
 
 setMode(mode);
 
@@ -241,6 +281,7 @@ setMode(mode);
 fetch('/api/config').then(r => (r.ok ? r.json() : null)).then(cfg => {
   if (!cfg?.vectorModel) return;
   const model = cfg.vectorModel.replace(/^databricks-/, '');
+  lunaLabel = /luna/i.test(model) ? `Luna (${model})` : model;
   modes.vector.hint = vectorHint(model);
   const seg = segs.find(s => s.dataset.mode === 'vector');
   if (seg) seg.title = `Vector search in Lakebase, answered by ${model}`;
