@@ -10,6 +10,7 @@ const ICONS = {
   decide: '<path d="M4 17a8 8 0 1 1 16 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 17l4-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.6" fill="currentColor"/>',
   luna: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" fill="currentColor"/>',
   terra: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.8 9.5h16.4M3.8 14.5h16.4M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5S9.4 5.9 12 3.5z" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  model: '<rect x="6" y="6" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.5 2.5v3M14.5 2.5v3M9.5 18.5v3M14.5 18.5v3M2.5 9.5h3M2.5 14.5h3M18.5 9.5h3M18.5 14.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="2" fill="currentColor"/>',
   answer: '<path d="M6 3h9l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 13l2.2 2.2L16 10.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 
@@ -66,7 +67,7 @@ export function createTrace(container, { mode, question, hasHistory, modelLabel 
     add(left, 'lakebase', 'Lakebase', 'lakebase');
     add(right, 'decide', 'ai_decide', 'decide');
     flow.append(fork, line());
-    add(flow, 'llm', modelLabel, /luna/i.test(modelLabel) ? 'luna' : 'terra');
+    add(flow, 'llm', modelLabel, /luna/i.test(modelLabel) ? 'luna' : /terra/i.test(modelLabel) ? 'terra' : 'model');
   }
   flow.append(line()); add(flow, 'answer', 'Answer', 'answer');
 

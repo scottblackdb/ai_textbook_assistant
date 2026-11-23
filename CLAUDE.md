@@ -25,7 +25,7 @@ verify with `node --check <file>` and real requests (see "Testing").
 |---|---|---|
 | Source | Genie agent `01f1e49951b91151bc1e88b97cc6517a` over PDFs in volume `quickstart_catalog.quickstart_schema.textbooks` | Lakebase project `shared`, branch `production`, endpoint `primary`, DB `textbooks`, table `public.textbook_chunks` |
 | API | `POST /api/2.0/genie/agents/{id}/responses` (Agent mode, **beta**, SSE) | embed -> pgvector cosine top-6 -> chat completion (streamed) |
-| Models | managed by Genie | embeddings `databricks-gte-large-en`; chat picked per request from `lib/models.js` (default Luna 6 via Unity Gateway service `scott.default.textbook`, also `databricks-gpt-6-1-terra`) |
+| Models | managed by Genie | embeddings `databricks-gte-large-en`; chat picked per request from `lib/models.js` (default Luna 6 via Unity Gateway service `scott.default.textbook`, also `databricks-gpt-6-1-terra` and `databricks-gpt-5-4-mini`) |
 | State | server returns `conversationId`; client sends it back | stateless: client sends last <=8 `history` messages |
 | Streaming | answer arrives whole (progress statuses only) | token `delta` events, then final `answer` |
 
@@ -43,7 +43,9 @@ client draws Question -> ... -> Answer per mode in `flow.js`; to add a step, emi
 - **Embedding model must stay `databricks-gte-large-en`**: verified by embedding a stored chunk (cosine sim 1.0). bge-large and
   qwen3-embedding are also 1024-d but do NOT match the stored vectors. If the pipeline notebook changes models, change `EMBEDDING_ENDPOINT` too.
 - "luna 6" was interpreted as `databricks-gpt-6-luna` (a `databricks-gpt-5-6-luna` also exists); "terra 6.1" is
-  `databricks-gpt-6-1-terra`. Both accept `reasoning_effort` `none|low|medium|high|xhigh` (not `minimal`) and stream.
+  `databricks-gpt-6-1-terra`; "gpt 5.4-mini" is `databricks-gpt-5-4-mini` (a `databricks-gpt-5-mini` also exists). All three accept
+  `reasoning_effort` `none|low|medium|high|xhigh` (not `minimal`) and stream. The flow node icon is picked from the label in
+  `flow.js` (Luna = moon, Terra = globe, anything else = chip).
 - Answer models: `lib/models.js` holds the allowlist (`RAG_CHAT_MODELS="endpoint=Label,..."`, default from `RAG_CHAT_ENDPOINT`).
   It has no heavy imports, because `server.js` loads it at startup for `GET /api/config` (`{ vectorModel, models }`). Clients send
   `model` in vector-mode requests; ids not on the list get an error before any model is called, so a client can't reach arbitrary
@@ -72,6 +74,9 @@ client draws Question -> ... -> Answer per mode in `flow.js`; to add a step, emi
   - It read "use only concepts from the excerpts" as "use only numbers from the excerpts" and skipped numeric examples. The prompt
     now says made-up numbers are fine (label them "Illustrative example:"; only the rules must come from the excerpts).
   - Compare / "how does X affect Y" questions are told to use a small side-by-side numeric example.
+  - Models wrote LaTeX (`\(150 \times \$12\)`) that showed up raw. The prompt now forbids LaTeX and asks for Unicode math
+    (×, ÷, ², ½), and `markdown.js` converts leftover `\( \)`, `\[ \]`, `$$ $$` and `\$` to plain text as a fallback (no math
+    library: strict CSP). Single `$` is never treated as math, because it means money here.
   Re-test with a definition, a compare question, an off-topic question and a physics question after any prompt edit.
 - Starter questions in `index.html` must work in BOTH modes. Test new ones in Lakebase mode, which is strictly grounded in the top 6
   chunks. A pendulum question was dropped because Motion Mountain mentions pendulums mostly in challenges and the index, so
