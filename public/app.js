@@ -12,7 +12,12 @@ const modes = {
   genie:  { el: $('messages-genie'),  flowEl: $('flow-genie'),  conversationId: null, history: [], hint: 'Genie agent searching your course PDFs. May contain mistakes; check important details in the book.' },
   vector: { el: $('messages-vector'), flowEl: $('flow-vector'), conversationId: null, history: [], hint: vectorHint('a foundation model') },
 };
-let lunaLabel = 'Luna'; // flow node name for the answer model; refined from /api/config
+// Answer models for vector mode come from /api/config; the choice is remembered per browser.
+const modelPicker = $('model-picker'), modelSelect = $('model-select');
+let models = [];
+let selectedModel = null;
+try { selectedModel = localStorage.getItem('model'); } catch { /* storage unavailable */ }
+const currentModel = () => models.find(m => m.id === selectedModel) || models[0] || null;
 const MAX_HISTORY = 8; // the server only uses the last 8 messages
 
 function vectorHint(model) {
@@ -31,6 +36,7 @@ function setMode(next) {
   for (const [key, m] of Object.entries(modes)) { m.el.hidden = key !== mode; m.flowEl.hidden = key !== mode; }
   for (const s of segs) s.setAttribute('aria-checked', String(s.dataset.mode === mode));
   welcome.hidden = modes[mode].el.childElementCount > 0;
+  modelPicker.hidden = mode !== 'vector' || models.length < 2;
   updateFlowEmpty();
   $('hint').textContent = modes[mode].hint;
   scrollToBottom();
@@ -103,6 +109,7 @@ function setBusy(v) {
   busy = v;
   sendBtn.disabled = v || !input.value.trim();
   for (const s of segs) s.disabled = v;
+  modelSelect.disabled = v;
 }
 
 async function ask(question) {
@@ -119,8 +126,9 @@ async function ask(question) {
   const bot = addMessage('bot', label);
   let streamed = '';
   const startedAt = performance.now();
+  const model = thisMode === 'vector' ? currentModel() : null;
   const trace = createTrace(state.flowEl, {
-    mode: thisMode, question, lunaLabel,
+    mode: thisMode, question, modelLabel: model?.label,
     hasHistory: thisMode === 'vector' && state.history.length > 0,
     onSelect: () => jumpTo(bot.wrap),
   });
@@ -135,6 +143,7 @@ async function ask(question) {
         mode: thisMode, message: question,
         conversationId: state.conversationId,
         history: thisMode === 'vector' ? state.history.slice(-MAX_HISTORY) : undefined,
+        model: model?.id,
       }),
     });
     if (!res.ok || !res.body) {
@@ -198,7 +207,7 @@ function formatElapsed(ms) {
 function addMeta(bot, ms, info = {}) {
   const parts = [];
   if (info.source) parts.push(info.source);
-  if (info.model) parts.push(info.model.replace(/^databricks-/, ''));
+  if (info.model) parts.push(info.modelLabel || info.model.replace(/^databricks-/, ''));
   if (info.effort) parts.push(`${info.effort} effort${info.effortSource === 'default' ? ' (default)' : ''}`);
   parts.push(formatElapsed(ms));
 
@@ -213,7 +222,7 @@ function addMeta(bot, ms, info = {}) {
   meta.className = 'meta';
   meta.textContent = parts.join(' · ');
   meta.title = info.source === 'Lakebase'
-    ? `Answered from Lakebase vector search by ${info.model}, reasoning effort ${info.effort}${effortDetail}. Took ${formatElapsed(ms)}.`
+    ? `Answered from Lakebase vector search by ${info.modelLabel || info.model} (${info.model}), reasoning effort ${info.effort}${effortDetail}. Took ${formatElapsed(ms)}.`
     : `Answered by the ${info.source || 'assistant'} in ${formatElapsed(ms)}`;
   bot.wrap.append(meta);
 }
@@ -277,13 +286,34 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') setFlowOpen(
 
 setMode(mode);
 
-// Show the model the server is actually configured with.
-fetch('/api/config').then(r => (r.ok ? r.json() : null)).then(cfg => {
-  if (!cfg?.vectorModel) return;
-  const model = cfg.vectorModel.replace(/^databricks-/, '');
-  lunaLabel = /luna/i.test(model) ? `Luna (${model})` : model;
-  modes.vector.hint = vectorHint(model);
+// Reflect the chosen answer model in the hint and the mode-switch tooltip.
+function applyModel() {
+  const m = currentModel();
+  if (!m) return;
+  selectedModel = m.id;
+  modelSelect.value = m.id;
+  modes.vector.hint = vectorHint(m.label);
   const seg = segs.find(s => s.dataset.mode === 'vector');
-  if (seg) seg.title = `Vector search in Lakebase, answered by ${model}`;
+  if (seg) seg.title = `Vector search in Lakebase, answered by ${m.label}`;
   if (mode === 'vector') $('hint').textContent = modes.vector.hint;
+}
+
+modelSelect.addEventListener('change', () => {
+  selectedModel = modelSelect.value;
+  try { localStorage.setItem('model', selectedModel); } catch { /* ignore */ }
+  applyModel();
+  input.focus();
+});
+
+// Load the models the server actually allows (and its default).
+fetch('/api/config').then(r => (r.ok ? r.json() : null)).then(cfg => {
+  if (!cfg) return;
+  models = Array.isArray(cfg.models) && cfg.models.length
+    ? cfg.models
+    : cfg.vectorModel ? [{ id: cfg.vectorModel, label: cfg.vectorModel.replace(/^databricks-/, '') }] : [];
+  // Default first so a stale or missing saved choice falls back to the server default.
+  models.sort((a, b) => (b.id === cfg.vectorModel) - (a.id === cfg.vectorModel));
+  modelSelect.replaceChildren(...models.map(m => new Option(m.label, m.id)));
+  applyModel();
+  modelPicker.hidden = mode !== 'vector' || models.length < 2;
 }).catch(() => { /* keep generic hint */ });

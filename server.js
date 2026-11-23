@@ -16,8 +16,8 @@ const { chat: genieChat } = await import('./lib/genie.js');
 
 const PORT = Number(process.env.PORT || 3000);
 const MAX_MESSAGE_CHARS = 2000;
-// Model shown in the UI for vector mode; same default as lib/rag.js.
-const VECTOR_MODEL = process.env.RAG_CHAT_ENDPOINT || 'databricks-gpt-6-luna';
+// Answer models offered in vector mode (lightweight module, safe to load without `pg`).
+const { CHAT_MODELS, DEFAULT_CHAT_MODEL } = await import('./lib/models.js');
 
 // rag.js (and its `pg` dependency) loads lazily, so a missing `npm install`
 // only disables vector mode instead of crashing the server.
@@ -54,6 +54,8 @@ async function handleChat(req, res) {
   const conversationId = typeof payload.conversationId === 'string' && /^[\w-]+$/.test(payload.conversationId)
     ? payload.conversationId : undefined;
   const history = Array.isArray(payload.history) ? payload.history : [];
+  // Vector mode only; validated against the allowlist in lib/models.js (unknown ids are rejected there).
+  const model = typeof payload.model === 'string' ? payload.model.slice(0, 100) : undefined;
 
   res.writeHead(200, {
     'Content-Type': 'application/x-ndjson; charset=utf-8',
@@ -67,7 +69,7 @@ async function handleChat(req, res) {
   const timeout = setTimeout(() => abort.abort(new Error('timeout')), 5 * 60_000);
 
   try {
-    await MODES[mode]({ message, conversationId, history }, send, abort.signal);
+    await MODES[mode]({ message, conversationId, history, model }, send, abort.signal);
   } catch (err) {
     if (!abort.signal.aborted || err?.message === 'timeout') {
       console.error(`Chat error (${mode}):`, err);
@@ -127,7 +129,7 @@ const securityHeaders = {
 http.createServer((req, res) => {
   for (const [k, v] of Object.entries(securityHeaders)) res.setHeader(k, v);
   if (req.method === 'POST' && req.url === '/api/chat') return handleChat(req, res);
-  if (req.method === 'GET' && req.url === '/api/config') return json(res, 200, { vectorModel: VECTOR_MODEL });
+  if (req.method === 'GET' && req.url === '/api/config') return json(res, 200, { vectorModel: DEFAULT_CHAT_MODEL, models: CHAT_MODELS });
   if (req.method === 'GET' && req.url === '/api/health') return json(res, 200, { ok: true });
   if (req.method === 'GET') return serveStatic(req, res);
   json(res, 405, { error: 'Method not allowed' });

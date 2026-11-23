@@ -9,6 +9,7 @@ const ICONS = {
   lakebase: '<ellipse cx="12" cy="5.5" rx="7" ry="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5" fill="none" stroke="currentColor" stroke-width="2"/>',
   decide: '<path d="M4 17a8 8 0 1 1 16 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 17l4-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.6" fill="currentColor"/>',
   luna: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" fill="currentColor"/>',
+  terra: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.8 9.5h16.4M3.8 14.5h16.4M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5S9.4 5.9 12 3.5z" fill="none" stroke="currentColor" stroke-width="1.6"/>',
   answer: '<path d="M6 3h9l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 13l2.2 2.2L16 10.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 
@@ -31,10 +32,10 @@ const line = () => Object.assign(document.createElement('div'), { className: 'fl
 
 /**
  * Build a flow card at the top of `container`.
- * opts: { mode: 'genie'|'vector', question, hasHistory, lunaLabel, onSelect }
+ * opts: { mode: 'genie'|'vector', question, hasHistory, modelLabel, onSelect }
  * Returns { step(ev), finish(ms, meta), fail(message) }.
  */
-export function createTrace(container, { mode, question, hasHistory, lunaLabel = 'Luna', onSelect }) {
+export function createTrace(container, { mode, question, hasHistory, modelLabel = 'Answer model', onSelect }) {
   for (const c of container.querySelectorAll('.trace.current')) c.classList.remove('current');
 
   const card = document.createElement('article');
@@ -65,7 +66,7 @@ export function createTrace(container, { mode, question, hasHistory, lunaLabel =
     add(left, 'lakebase', 'Lakebase', 'lakebase');
     add(right, 'decide', 'ai_decide', 'decide');
     flow.append(fork, line());
-    add(flow, 'luna', lunaLabel, 'luna');
+    add(flow, 'llm', modelLabel, /luna/i.test(modelLabel) ? 'luna' : 'terra');
   }
   flow.append(line()); add(flow, 'answer', 'Answer', 'answer');
 

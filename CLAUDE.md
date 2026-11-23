@@ -25,14 +25,14 @@ verify with `node --check <file>` and real requests (see "Testing").
 |---|---|---|
 | Source | Genie agent `01f1e49951b91151bc1e88b97cc6517a` over PDFs in volume `quickstart_catalog.quickstart_schema.textbooks` | Lakebase project `shared`, branch `production`, endpoint `primary`, DB `textbooks`, table `public.textbook_chunks` |
 | API | `POST /api/2.0/genie/agents/{id}/responses` (Agent mode, **beta**, SSE) | embed -> pgvector cosine top-6 -> chat completion (streamed) |
-| Models | managed by Genie | embeddings `databricks-gte-large-en`; chat `databricks-gpt-6-luna` |
+| Models | managed by Genie | embeddings `databricks-gte-large-en`; chat picked per request from `lib/models.js` (default Luna 6 via Unity Gateway service `scott.default.textbook`, also `databricks-gpt-6-1-terra`) |
 | State | server returns `conversationId`; client sends it back | stateless: client sends last <=8 `history` messages |
 | Streaming | answer arrives whole (progress statuses only) | token `delta` events, then final `answer` |
 
 Client -> server body: `{ mode, message, conversationId?, history? }` (message max 2000 chars).
 Server -> client: NDJSON lines, `type` in `status | step | delta | answer | error`.
 `step` = `{ node, state: 'active'|'done'|'error', detail?, ms? }`. Nodes: genie mode `genie`, `answer`; vector mode `rewrite` (only
-when there is history), `embed`, `lakebase`, `decide` (ai_decide, runs in parallel with embed+lakebase), `luna`, `answer`. The
+when there is history), `embed`, `lakebase`, `decide` (ai_decide, runs in parallel with embed+lakebase), `llm` (the chosen answer model; labelled with its name), `answer`. The
 client draws Question -> ... -> Answer per mode in `flow.js`; to add a step, emit it server-side AND add the node to the layout there.
 `answer` = `{ text, sources: [{ n, title, pages? | pagesLabel? }], conversationId? }`; text uses plain `[n]` citation markers.
 
@@ -42,7 +42,19 @@ client draws Question -> ... -> Answer per mode in `flow.js`; to add a step, emi
   rewrites them to `[n]` and builds Sources from the retrieved `<chunk source="file.pdf (p.N)">` blocks.
 - **Embedding model must stay `databricks-gte-large-en`**: verified by embedding a stored chunk (cosine sim 1.0). bge-large and
   qwen3-embedding are also 1024-d but do NOT match the stored vectors. If the pipeline notebook changes models, change `EMBEDDING_ENDPOINT` too.
-- "luna 6" was interpreted as `databricks-gpt-6-luna` (a `databricks-gpt-5-6-luna` also exists). Override with `RAG_CHAT_ENDPOINT`.
+- "luna 6" was interpreted as `databricks-gpt-6-luna` (a `databricks-gpt-5-6-luna` also exists); "terra 6.1" is
+  `databricks-gpt-6-1-terra`. Both accept `reasoning_effort` `none|low|medium|high|xhigh` (not `minimal`) and stream.
+- Answer models: `lib/models.js` holds the allowlist (`RAG_CHAT_MODELS="endpoint=Label,..."`, default from `RAG_CHAT_ENDPOINT`).
+  It has no heavy imports, because `server.js` loads it at startup for `GET /api/config` (`{ vectorModel, models }`). Clients send
+  `model` in vector-mode requests; ids not on the list get an error before any model is called, so a client can't reach arbitrary
+  serving endpoints. The UI dropdown (`#model-select`, Vector Search mode only) is filled from `/api/config` and remembered in
+  `localStorage`. The follow-up rewrite uses the same chosen model.
+- Luna 6 is called through the **Unity Gateway model service `scott.default.textbook`** (user's request). It routes 100% to
+  `system.ai.databricks-gpt-6-luna` and logs to the inference table `scott.default.textbook_payload`. Ids matching
+  `catalog.schema.service` (`isGatewayService` in `lib/models.js`) are sent to `POST /ai-gateway/mlflow/v1/chat/completions` with
+  `model` in the body; other ids go to `/serving-endpoints/{id}/invocations`. Request body and SSE stream format are identical,
+  and `reasoning_effort` passes through. Callers need `USE CATALOG`/`USE SCHEMA` on `scott.default` and `EXECUTE` on the service.
+  Inspect it with `databricks ai-gateway get-model-service model-services/scott.default.textbook --profile DEFAULT`.
 - `textbook_chunks` columns: `id, source_file, chunk_index, page_start, page_end, content, embedding vector(1024), created_at`
   (~4,968 rows, HNSW cosine index, unique `(source_file, chunk_index)`). No title column: titles are prettified from file names.
   Chunks span page ranges (e.g. pp. 82-83), so Sources show ranges.
@@ -61,10 +73,11 @@ client draws Question -> ... -> Answer per mode in `flow.js`; to add a step, emi
     now says made-up numbers are fine (label them "Illustrative example:"; only the rules must come from the excerpts).
   - Compare / "how does X affect Y" questions are told to use a small side-by-side numeric example.
   Re-test with a definition, a compare question, an off-topic question and a physics question after any prompt edit.
-- Known content gap: the starter question "How does conservation of energy explain the motion of a pendulum?" retrieves friction
-  and heat chunks, so Luna correctly says the excerpts don't cover it. Motion Mountain mentions pendulums mostly in challenges and
-  the index. Also, `textbook_chunks` holds each book both as the full PDF and as `_part_one/two/three` files, so retrieval can
-  return near-duplicate chunks (a pipeline issue, not an app issue).
+- Starter questions in `index.html` must work in BOTH modes. Test new ones in Lakebase mode, which is strictly grounded in the top 6
+  chunks. A pendulum question was dropped because Motion Mountain mentions pendulums mostly in challenges and the index, so
+  retrieval returned friction and heat chunks and Luna correctly declined. It was replaced by the free-fall-in-a-vacuum question
+  (medium effort, 5 cited excerpts). Also, `textbook_chunks` holds each book both as the full PDF and as `_part_one/two/three`
+  files, so retrieval can return near-duplicate chunks (a pipeline issue, not an app issue).
 - The UI reads the vector-mode model name from `GET /api/config`; don't hardcode model names in `public/`.
 - `answer` events carry `meta`: `{ source: 'Genie' }` or `{ source: 'Lakebase', model, effort }`. The UI shows it with the
   browser-measured elapsed time as a small label under each answer (`addMeta` in `app.js`).

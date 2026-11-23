@@ -22,9 +22,13 @@
       </div>
       <div class="actions">
         <div class="segmented" role="radiogroup" aria-label="Answer mode">
-          <button type="button" role="radio" class="seg" data-mode="genie" aria-checked="true" title="Genie agent searches the course PDFs">Genie Agent</button>
-          <button type="button" role="radio" class="seg" data-mode="vector" aria-checked="false" title="Vector search in Lakebase, answered by a foundation model">Vector Search</button>
+          <button type="button" role="radio" class="seg" data-mode="genie" aria-checked="true" title="Genie agent searches the course PDFs"><span class="seg-long">Genie Agent</span><span class="seg-short">Genie</span></button>
+          <button type="button" role="radio" class="seg" data-mode="vector" aria-checked="false" title="Vector search in Lakebase, answered by a foundation model"><span class="seg-long">Vector Search</span><span class="seg-short">Vector</span></button>
         </div>
+        <label class="model-picker" id="model-picker" hidden>
+          <span class="visually-hidden">Answer model</span>
+          <select id="model-select" title="Model that writes the answer in Vector Search mode"></select>
+        </label>
         <button id="new-chat" class="btn ghost with-icon" type="button" aria-label="New chat">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span class="btn-label">New chat</span>
@@ -53,7 +57,7 @@
           <button type="button" class="chip">How do kinetic energy, potential energy and work connect in a falling object?</button>
           <button type="button" class="chip">How are friction, heat and energy conservation related?</button>
           <button type="button" class="chip">Explain how Newton's three laws of motion relate to conservation of momentum</button>
-          <button type="button" class="chip">How does conservation of energy explain the motion of a pendulum?</button>
+          <button type="button" class="chip">Why do all objects fall at the same rate in a vacuum, and how does air resistance change that?</button>
           <button type="button" class="chip">Explain how angular momentum conservation explains why a spinning skater speeds up when pulling in their arms</button>
           <button type="button" class="chip">Inventory: 100 units at $10, then 150 units at $12; 180 units are sold. Compute cost of goods sold and ending inventory under FIFO and LIFO.</button>
           <button type="button" class="chip">A company earns $8,000 of service revenue on account, pays $2,500 rent and $1,200 wages. Record the journal entries and compute net income.</button>
